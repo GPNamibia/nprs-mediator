@@ -33,6 +33,71 @@ function jsonToQueryString(json) {
   return `?${query}`;
 }
 
+function generateValidFHIRResource(body, type) {
+  var obj = {};
+  if (type == 'valid')
+  {
+    obj = {
+      "resourceType": "Patient",
+      "identifier": [
+        {
+          "system": "http://ohie.org/National_ID",
+          "value": body.idNoActive
+        }
+      ],
+      "extension": [ 
+        {
+          "url": "urn:validationproject:nprsStatus",
+          "valueString": "valid"
+        } 
+      ],
+      "name": [
+        {
+          "family": body.surnameActive,
+          "given": body.firstNameActive,
+          "use": "official"
+        }
+      ],
+      "birthDate": body.birthDateActive.replace(/\//g, '-')
+    };
+
+  }
+  else
+  {
+    var gender = "";
+    if (body.data.sex == 'm') {
+      gender = "male";
+    }
+    else if (body.sex == 'f') {
+      gender = "female";
+    }
+
+    obj = {
+      "resourceType": "Patient",
+      "identifier": [
+        {
+          "system": "http://ohie.org/National_ID",
+          "value": body.data.idNo
+        }
+      ],
+      "extension": [ 
+        {
+          "url": "urn:validationproject:nprsStatus",
+          "valueString": "invalid"
+        } 
+      ],
+      "name": [
+        {
+          "family": body.data.surname
+        }
+      ],
+      "gender": gender
+    };
+
+  }
+  return obj;
+}
+
 
 //User auth
 const userAuthentication = async (req, res) => {
@@ -74,10 +139,13 @@ const POST = async (req, res) => {
       //Acces token
       // const accessToken = req.body.auth;
       const accessToken = req.body.meta.tag[0].code;
-     await nprsAPI.GET(query, accessToken).then(async (response) => {
-      // console.log(response)
-        res.status(200).send(response);
-        //return resolve(response);
+      await nprsAPI.GET(query, accessToken).then(async (response) => {
+        if(response.faultCode == 201){
+          res.status(200).send(generateValidFHIRResource(response,"valid"));
+        }
+        else{
+          res.status(200).send(generateValidFHIRResource(response,"invalid"));
+        }
       }).catch(error => { res.status(400).send(error) })
     } catch (error) {
       res.status(400).send(error)
